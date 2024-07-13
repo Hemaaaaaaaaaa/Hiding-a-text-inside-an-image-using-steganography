@@ -1,75 +1,107 @@
-Steganography: Hiding an image inside another
-Usage
-Create a virtualenv and install the requirements:
-
-virtualenv venv
-source venv/bin/activate
-pip install -r requirements.txt
-Then, merge and unmerge your files with:
-
-python steganography.py merge --image1=res/image1.jpg --image2=res/image2.jpg --output=res/output.png
-python steganography.py unmerge --image=res/output.png --output=res/output2.png
-To use the Steganography class in your Python code, you will need to use the Image module from the Pillow library, for example:
-
+# Python program implementing Image Steganography
+# PIL module is used to extract pixels of image and modify it
 from PIL import Image
 
-merged_image = Steganography().merge(Image.open(image1), Image.open(image2))
-merged_image.save(output)
-Note: the output image from the merge operation and the input image for the unmerge operation must be in PNG format.
+# Convert encoding data into 8-bit binary form using ASCII value of characters
+def genData(data):
+    # list of binary codes of given data
+    newd = []
+    for i in data:
+        newd.append(format(ord(i), '08b'))
+    return newd
 
-Steganography
-Let’s understand what is steganography, digital images, pixels, and color models.
+# Pixels are modified according to the 8-bit binary data and finally returned
+def modPix(pix, data):
+    datalist = genData(data)
+    lendata = len(datalist)
+    imdata = iter(pix)
+    for i in range(lendata):
+        # Extracting 3 pixels at a time
+        pix = [value for value in next(imdata)[:3] +
+               next(imdata)[:3] +
+               next(imdata)[:3]]
+        # Pixel value should be made odd for 1 and even for 0
+        for j in range(0, 8):
+            if (datalist[i][j] == '0' and pix[j] % 2 != 0):
+                pix[j] -= 1
+            elif (datalist[i][j] == '1' and pix[j] % 2 == 0):
+                if pix[j] != 0:
+                    pix[j] -= 1
+                else:
+                    pix[j] += 1
+        # Eighth pixel of every set tells whether to stop or read further.
+        # 0 means keep reading; 1 means the message is over.
+        if i == lendata - 1:
+            if pix[-1] % 2 == 0:
+                if pix[-1] != 0:
+                    pix[-1] -= 1
+                else:
+                    pix[-1] += 1
+        else:
+            if pix[-1] % 2 != 0:
+                pix[-1] -= 1
+        pix = tuple(pix)
+        yield pix[0:3]
+        yield pix[3:6]
+        yield pix[6:9]
 
-What is steganography?
-Steganography is the practice of concealing a file, message, image, or video within another file, message, image, or video.
+def encode_enc(newimg, data):
+    w = newimg.size[0]
+    (x, y) = (0, 0)
+    for pixel in modPix(newimg.getdata(), data):
+        # Putting modified pixels in the new image
+        newimg.putpixel((x, y), pixel)
+        if x == w - 1:
+            x = 0
+            y += 1
+        else:
+            x += 1
 
-What is the advantage of steganography over cryptography?
-The advantage of steganography over cryptography alone is that the intended secret message does not attract attention to itself as an object of scrutiny. Plainly visible encrypted messages, no matter how unbreakable they are, arouse interest and may in themselves be incriminating in countries in which encryption is illegal.
+# Encode data into image
+def encode():
+    img = input("Enter image name (with extension): ")
+    image = Image.open(img, 'r')
+    data = input("Enter data to be encoded: ")
+    if len(data) == 0:
+        raise ValueError('Data is empty')
+    newimg = image.copy()
+    encode_enc(newimg, data)
+    new_img_name = input("Enter the name of new image (with extension): ")
+    newimg.save(new_img_name, str(new_img_name.split(".")[1].upper()))
 
-In other words, steganography is more discreet than cryptography when we want to send a secret information. On the other hand, the hidden message is easier to extract.
+# Decode the data in the image
+def decode():
+    img = input("Enter image name (with extension): ")
+    image = Image.open(img, 'r')
+    data = ''
+    imgdata = iter(image.getdata())
+    while True:
+        pixels = [value for value in next(imgdata)[:3] +
+                  next(imgdata)[:3] +
+                  next(imgdata)[:3]]
+        # string of binary data
+        binstr = ''
+        for i in pixels[:8]:
+            if i % 2 == 0:
+                binstr += '0'
+            else:
+                binstr += '1'
+        data += chr(int(binstr, 2))
+        if pixels[-1] % 2 != 0:
+            return data
 
-What is a digital image?
-Ok, now that we know the basics of steganography, let’s learn some simple image processing concepts.
+# Main Function
+def main():
+    a = int(input(":: Welcome to Steganography ::\n"
+                  "1. Encode\n2. Decode\n"))
+    if a == 1:
+        encode()
+    elif a == 2:
+        print("Decoded Word : " + decode())
+    else:
+        raise Exception("Enter correct input")
 
-Before understanding how can we hide an image inside another, we need to understand what a digital image is.
-
-We can describe a digital image as a finite set of digital values, called pixels. Pixels are the smallest individual element of an image, holding values that represent the brightness of a given color at any specific point. So we can think of an image as a matrix (or a two-dimensional array) of pixels which contains a fixed number of rows and columns.
-
-
-
-When using the “digital image” term here, we are referencing to the “raster graphics”, which are basically a dot matrix data structure, representing a grid of pixels, which in turn can be stored in image files with varying formats. You can read more about digital images, raster graphics, and bitmaps at the Wikipedia website.
-
-Pixel concept and color models
-As already mentioned, pixels are the smallest individual element of an image. So, each pixel is a sample of an original image. It means, more samples provide more accurate representations of the original. The intensity of each pixel is variable. In color imaging systems, a color is typically represented by three or four component intensities such as red, green, and blue, or cyan, magenta, yellow, and black.
-
-Here, we will work with the RGB color model. As you can imagine, the RGB color model has 3 channels, red, green and blue.
-
-The RGB color model is an additive color model in which red, green and blue light are added together in various ways to reproduce a broad array of colors. The name of the model comes from the initials of the three additive primary colors, red, green, and blue. The main purpose of the RGB color model is for the sensing, representation and display of images in electronic systems, such as televisions and computers, though it has also been used in conventional photography.
-
-
-
-So, each pixel from the image is composed of 3 values (red, green, blue) which are 8-bit values (the range is 0–255).
-
-
-
-As we can see in the image above, for each pixel we have three values, which can be represented in binary code (the computer language).
-
-When working with binary codes, we have more significant bits and less significant bits, as you can see in the image below.
-
-
-
-The leftmost bit is the most significant bit. If we change the leftmost bit it will have a large impact on the final value. For example, if we change the leftmost bit from 1 to 0 (11111111 to 01111111) it will change the decimal value from 255 to 127.
-
-On the other hand, the rightmost bit is the least significant bit. If we change the rightmost bit it will have less impact on the final value. For example, if we change the leftmost bit from 1 to 0 (11111111 to 11111110) it will change the decimal value from 255 to 254. Note that the rightmost bit will change only 1 in a range of 256 (it represents less than 1%).
-
-Summarizing: each pixel has three values (RGB), each RGB value is 8-bit (it means we can store 8 binary values) and the rightmost bits are least significant. So, if we change the rightmost bits it will have a small visual impact on the final image. This is the steganography key to hide an image inside another. Change the least significant bits from an image and include the most significant bits from the other image.
-
-
-
-You can check out the result in the following image:
-
-The left upper image is the image that will hide the right upper image. The left lower image is the two images merged and the right lower image is the extracted (unmerged) image.
-
-
-
-As you can see in the image above, we lost some image quality in the process, but this does not interfere with image comprehension.
+# Driver Code
+if __name__ == '__main__':
+    # Calling main function
+    main()
